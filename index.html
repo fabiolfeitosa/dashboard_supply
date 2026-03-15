@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suprimentos · Central de Inteligência</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0A0C10;
+    --surface: #111318;
+    --surface2: #181C24;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #F0F2F7;
+    --muted: #6B7280;
+    --accent: #00E5A0;
+    --accent2: #3B8BFF;
+    --accent3: #FF6B35;
+    --accent4: #C084FC;
+    --warn: #FBBF24;
+    --danger: #F87171;
+    --success: #34D399;
+    --font: 'Space Grotesk', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* GLOW ORBS */
+  .orb { position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0; }
+  .orb1 { width: 600px; height: 600px; background: rgba(0,229,160,0.06); top: -200px; left: -100px; }
+  .orb2 { width: 500px; height: 500px; background: rgba(59,139,255,0.06); bottom: -100px; right: -100px; }
+
+  /* LAYOUT */
+  .layout { position: relative; z-index: 1; display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: rgba(17,19,24,0.95); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 28px 0;
+    backdrop-filter: blur(20px); position: sticky; top: 0; height: 100vh;
+  }
+  .logo { padding: 0 24px 28px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .logo-mark { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .logo-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+  .logo-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .nav-group { padding: 0 12px; margin-bottom: 8px; }
+  .nav-label { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; padding: 0 12px; margin-bottom: 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted); transition: all 0.15s; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(0,229,160,0.1); color: var(--accent); }
+  .nav-item.active .nav-dot { background: var(--accent); }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+  .nav-badge { margin-left: auto; font-size: 10px; font-family: var(--mono); background: rgba(248,113,113,0.15); color: var(--danger); padding: 2px 7px; border-radius: 20px; }
+  .nav-badge.green { background: rgba(52,211,153,0.12); color: var(--success); }
+
+  .sidebar-footer { margin-top: auto; padding: 16px 24px 0; border-top: 1px solid var(--border); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; display: inline-block; margin-right: 7px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* MAIN */
+  .main { overflow-x: hidden; }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 32px; border-bottom: 1px solid var(--border);
+    background: rgba(10,12,16,0.8); backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-left h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+  .topbar-left p { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .filter-btn {
+    display: flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border2); background: var(--surface);
+    color: var(--muted); font-size: 12px; font-family: var(--font);
+    padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.06); }
+  .period-tabs { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .period-tab { padding: 7px 14px; font-size: 12px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+  .period-tab.active { background: var(--accent); color: #0A0C10; font-weight: 600; }
+
+  /* CONTENT */
+  .content { padding: 28px 32px; }
+
+  /* KPI ROW */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 28px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+  }
+  .kpi-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--card-color, var(--accent)), transparent);
+  }
+  .kpi-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); margin-bottom: 14px; font-size: 18px; }
+  .kpi-label { font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .kpi-value { font-size: 26px; font-weight: 700; letter-spacing: -1px; color: var(--text); }
+  .kpi-delta { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 11px; }
+  .kpi-delta.up { color: var(--success); }
+  .kpi-delta.down { color: var(--danger); }
+  .kpi-delta.warn { color: var(--warn); }
+  .kpi-sparkline { position: absolute; bottom: 0; right: 0; width: 80px; height: 40px; opacity: 0.4; }
+
+  /* GRID LAYOUTS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: 18px; margin-bottom: 18px; }
+  .grid-3-eq { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+
+  /* CHART CARD */
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px; overflow: hidden;
+  }
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .card-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .card-tag { font-size: 10px; font-family: var(--mono); padding: 3px 9px; border-radius: 20px; font-weight: 500; }
+  .tag-green { background: rgba(52,211,153,0.1); color: var(--success); }
+  .tag-blue { background: rgba(59,139,255,0.1); color: var(--accent2); }
+  .tag-orange { background: rgba(255,107,53,0.1); color: var(--accent3); }
+  .tag-warn { background: rgba(251,191,36,0.1); color: var(--warn); }
+  .tag-purple { background: rgba(192,132,252,0.1); color: var(--accent4); }
+  .tag-red { background: rgba(248,113,113,0.1); color: var(--danger); }
+
+  /* CHART WRAP */
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* PROGRESS LIST */
+  .prog-item { margin-bottom: 14px; }
+  .prog-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .prog-name { font-size: 12px; color: var(--text); font-weight: 500; max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prog-val { font-size: 12px; font-family: var(--mono); color: var(--muted); }
+  .prog-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+  /* TABLE */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+  .data-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text); }
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 600; font-family: var(--mono); }
+  .pill-green { background: rgba(52,211,153,0.12); color: var(--success); }
+  .pill-orange { background: rgba(255,107,53,0.12); color: var(--accent3); }
+  .pill-red { background: rgba(248,113,113,0.12); color: var(--danger); }
+  .pill-blue { background: rgba(59,139,255,0.12); color: var(--accent2); }
+  .pill-warn { background: rgba(251,191,36,0.12); color: var(--warn); }
+
+  /* GAUGE */
+  .gauge-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  /* DONUT LEGEND */
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+  .dl-item { display: flex; align-items: center; gap: 8px; }
+  .dl-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .dl-name { font-size: 11px; color: var(--muted); flex: 1; }
+  .dl-val { font-size: 12px; font-family: var(--mono); color: var(--text); font-weight: 500; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* SECTION TITLE */
+  .section-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; margin-top: 8px; }
+  .section-divider span { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  .section-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ALERT STRIP */
+  .alert-strip { background: rgba(248,113,113,0.07); border: 1px solid rgba(248,113,113,0.2); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .alert-strip-icon { font-size: 16px; }
+  .alert-strip-text { font-size: 12px; color: var(--danger); flex: 1; }
+  .alert-strip-count { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--danger); }
+
+  /* ANIM */
+  @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  .kpi-card { animation: fadeUp 0.4s ease both; }
+  .kpi-card:nth-child(1){animation-delay:.05s} .kpi-card:nth-child(2){animation-delay:.1s}
+  .kpi-card:nth-child(3){animation-delay:.15s} .kpi-card:nth-child(4){animation-delay:.2s}
+  .kpi-card:nth-child(5){animation-delay:.25s}
+  .chart-card { animation: fadeUp 0.5s ease both; animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">
+      <div class="logo-icon">
+        <svg viewBox="0 0 18 18" fill="none"><path d="M9 2L15 5.5V12.5L9 16L3 12.5V5.5L9 2Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><circle cx="9" cy="9" r="2" fill="white"/></svg>
+      </div>
+      <span class="logo-title">Suprimentos</span>
+    </div>
+    <div class="logo-sub">v2.0 · 2023–2024</div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">Painéis</div>
+    <div class="nav-item active"><div class="nav-dot"></div>Visão Geral</div>
+    <div class="nav-item"><div class="nav-dot"></div>Pedidos <span class="nav-badge green">+18%</span></div>
+    <div class="nav-item"><div class="nav-dot"></div>Cotações</div>
+    <div class="nav-item"><div class="nav-dot"></div>SLA & Prazos <span class="nav-badge">3</span></div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">Análises</div>
+    <div class="nav-item"><div class="nav-dot"></div>Fornecedores</div>
+    <div class="nav-item"><div class="nav-dot"></div>Categorias</div>
+    <div class="nav-item"><div class="nav-dot"></div>Saving</div>
+    <div class="nav-item"><div class="nav-dot"></div>Centro de Custo</div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">Operacional</div>
+    <div class="nav-item"><div class="nav-dot"></div>Solicitações</div>
+    <div class="nav-item"><div class="nav-dot"></div>Aprovações</div>
+    <div class="nav-item"><div class="nav-dot"></div>Relatórios</div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div style="display:flex;align-items:center;margin-bottom:8px;">
+      <span class="status-dot"></span>
+      <span class="status-text">dados atualizados</span>
+    </div>
+    <div class="status-text" style="margin-left:14px;">Mar 2024 · 15.000 linhas</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1>Central de Inteligência · Suprimentos</h1>
+      <p>FIL: Todas as filiais · Jan 2023 – Mar 2024</p>
+    </div>
+    <div class="topbar-right">
+      <button class="filter-btn active">⬡ Todas filiais</button>
+      <button class="filter-btn">↓ Exportar</button>
+      <div class="period-tabs">
+        <div class="period-tab">3M</div>
+        <div class="period-tab">6M</div>
+        <div class="period-tab active">12M</div>
+        <div class="period-tab">Total</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- ALERT -->
+    <div class="alert-strip">
+      <span class="alert-strip-icon">⚠</span>
+      <span class="alert-strip-text">Itens com SLA vencido aguardando ação do comprador — revisar urgente</span>
+      <span class="alert-strip-count">47 itens</span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi-card" style="--card-color: #00E5A0">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-label">Volume Total</div>
+        <div class="kpi-value">R$37,8M</div>
+        <div class="kpi-delta up">▲ +22% vs ano anterior</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #3B8BFF">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-label">Pedidos Emitidos</div>
+        <div class="kpi-value">15.000</div>
+        <div class="kpi-delta up">▲ +18% vs ano anterior</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #34D399">
+        <div class="kpi-icon">✅</div>
+        <div class="kpi-label">Taxa Atendimento</div>
+        <div class="kpi-value">70,5%</div>
+        <div class="kpi-delta up">▲ +3,2pp vs meta 68%</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #FBBF24">
+        <div class="kpi-icon">⏱</div>
+        <div class="kpi-label">Lead Time Médio</div>
+        <div class="kpi-value">36,5 d</div>
+        <div class="kpi-delta warn">— Meta: 35 dias</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #F87171">
+        <div class="kpi-icon">🏷</div>
+        <div class="kpi-label">Saving Realizado</div>
+        <div class="kpi-value">R$892k</div>
+        <div class="kpi-delta up">▲ +8,4% em descontos</div>
+      </div>
+    </div>
+
+    <!-- SECTION 1 -->
+    <div class="section-divider"><span>Volume & Tendência</span></div>
+
+    <div class="grid-2">
+      <!-- VOLUME MENSAL -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Volume de Compras por Mês (R$)</div>
+            <div class="card-sub">Barras empilhadas por tipo de pedido</div>
+          </div>
+          <span class="card-tag tag-green">Barras empilhadas</span>
+        </div>
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="volMensal"></canvas>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div style="width:10px;height:10px;border-radius:2px;background:#3B8BFF;flex-shrink:0"></div>Livre</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div style="width:10px;height:10px;border-radius:2px;background:#00E5A0;flex-shrink:0"></div>Automático</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div style="width:10px;height:10px;border-radius:2px;background:#FBBF24;flex-shrink:0"></div>Contrato</div>
+        </div>
+      </div>
+
+      <!-- SITUAÇÃO PEDIDOS -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Situação dos Pedidos</div>
+            <div class="card-sub">Distribuição por status · 15.000 itens</div>
+          </div>
+          <span class="card-tag tag-blue">Donut</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:24px;">
+          <div class="chart-wrap" style="height:160px;width:160px;flex-shrink:0">
+            <canvas id="situacaoDonut"></canvas>
+          </div>
+          <div class="donut-legend" style="flex:1">
+            <div class="dl-item"><div class="dl-dot" style="background:#34D399"></div><span class="dl-name">Atendido</span><span class="dl-val">8.953</span></div>
+            <div class="dl-item"><div class="dl-dot" style="background:#3B8BFF"></div><span class="dl-name">Em Aberto</span><span class="dl-val">4.272</span></div>
+            <div class="dl-item"><div class="dl-dot" style="background:#F87171"></div><span class="dl-name">Cancelado</span><span class="dl-val">1.843</span></div>
+            <div class="dl-item"><div class="dl-dot" style="background:#FBBF24"></div><span class="dl-name">Reprovado</span><span class="dl-val">26</span></div>
+            <div class="dl-item"><div class="dl-dot" style="background:#C084FC"></div><span class="dl-name">Em Aprovação</span><span class="dl-val">15</span></div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;margin-bottom:4px">Ticket Médio</div>
+            <div style="font-size:18px;font-weight:700;color:var(--accent)">R$2.518</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;margin-bottom:4px">% Cancelamento</div>
+            <div style="font-size:18px;font-weight:700;color:var(--danger)">12,3%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2 -->
+    <div class="section-divider"><span>Categorias & Fornecedores</span></div>
+
+    <div class="grid-3-eq">
+      <!-- TOP CATEGORIAS -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Volume por Categoria</div>
+            <div class="card-sub">Top 8 grupos de materiais</div>
+          </div>
+          <span class="card-tag tag-orange">Ranking</span>
+        </div>
+        <div id="rankCateg"></div>
+      </div>
+
+      <!-- TOP FORNECEDORES -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Top 10 Fornecedores</div>
+            <div class="card-sub">Por volume de compras (R$)</div>
+          </div>
+          <span class="card-tag tag-purple">Barras horiz.</span>
+        </div>
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="topFornChart"></canvas>
+        </div>
+      </div>
+
+      <!-- CONCENTRAÇÃO -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Concentração Fornecedores</div>
+            <div class="card-sub">Curva ABC · risco de dependência</div>
+          </div>
+          <span class="card-tag tag-warn">Curva ABC</span>
+        </div>
+        <div style="margin-bottom:14px;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">CONCENTRAÇÃO TOP 5</div>
+          <div style="font-size:28px;font-weight:700;color:var(--warn)">31,4%</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">do volume total · risco moderado</div>
+        </div>
+        <div id="abcBars"></div>
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)"><div style="width:8px;height:8px;border-radius:2px;background:#34D399"></div>A · top 20% fornec.</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)"><div style="width:8px;height:8px;border-radius:2px;background:#FBBF24"></div>B · 30% seguintes</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)"><div style="width:8px;height:8px;border-radius:2px;background:#F87171"></div>C · demais</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3 -->
+    <div class="section-divider"><span>SLA · Prazos · Desempenho</span></div>
+
+    <div class="grid-2">
+      <!-- LEAD TIME TENDÊNCIA -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Evolução Lead Time × SLA (dias)</div>
+            <div class="card-sub">Média mensal de compras vs linha de meta 35 dias</div>
+          </div>
+          <span class="card-tag tag-blue">Linha + área</span>
+        </div>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="leadTimeChart"></canvas>
+        </div>
+      </div>
+
+      <!-- CONFORMIDADE SLA -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Conformidade SLA por Filial</div>
+            <div class="card-sub">% pedidos dentro do prazo · meta 85%</div>
+          </div>
+          <span class="card-tag tag-green">Barras + meta</span>
+        </div>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="slaFilialChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4 -->
+    <div class="section-divider"><span>Cotações · Saving</span></div>
+
+    <div class="grid-3-eq">
+      <!-- FUNIL -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Funil de Compras</div>
+            <div class="card-sub">Solicitação → Cotação → Pedido</div>
+          </div>
+          <span class="card-tag tag-green">Funil</span>
+        </div>
+        <div id="funnelViz" style="padding:8px 0"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:6px">TAXA DE CONVERSÃO GERAL</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">42,8%</div>
+          <div style="font-size:11px;color:var(--muted)">sol. → pedido efetivado</div>
+        </div>
+      </div>
+
+      <!-- SAVING MENSAL -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Saving Acumulado (R$)</div>
+            <div class="card-sub">Descontos negociados por mês</div>
+          </div>
+          <span class="card-tag tag-purple">Área</span>
+        </div>
+        <div class="chart-wrap" style="height:180px">
+          <canvas id="savingChart"></canvas>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+          <div style="background:var(--surface2);border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">SAVING TOTAL</div>
+            <div style="font-size:16px;font-weight:700;color:var(--success);margin-top:3px">R$ 892k</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">DESCONTO MÉDIO</div>
+            <div style="font-size:16px;font-weight:700;color:var(--accent4);margin-top:3px">4,2%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORNECEDORES POR COTAÇÃO -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Cotações por Comprador</div>
+            <div class="card-sub">Volume e saving por usuário comprador</div>
+          </div>
+          <span class="card-tag tag-orange">Tabela</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr><th>Comprador</th><th>Cotações</th><th>Saving</th><th>Perf.</th></tr>
+          </thead>
+          <tbody id="compradorTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SECTION 5 -->
+    <div class="section-divider"><span>Últimas Solicitações · Monitoramento</span></div>
+
+    <div class="chart-card" style="margin-bottom:18px">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Solicitações Recentes · Aguardando Ação</div>
+          <div class="card-sub">Filtro: Aberto + Pendente · ordenado por SLA mais próximo</div>
+        </div>
+        <span class="card-tag tag-red">Monitoramento</span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th>#SOL</th><th>Filial</th><th>Categoria</th><th>Material</th><th>Qtd</th><th>Solicitante</th><th>SLA Compras</th><th>Status</th><th>Prioridade</th></tr>
+        </thead>
+        <tbody id="monitorTable"></tbody>
+      </table>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /layout -->
+
+<script>
+// ==================== DATA ====================
+const months = ['Jan/23','Fev/23','Mar/23','Abr/23','Mai/23','Jun/23','Jul/23','Ago/23','Set/23','Out/23','Nov/23','Dez/23','Jan/24','Fev/24','Mar/24'];
+const livre =   [1420,1380,1510,1620,1490,1750,1680,1820,1590,1720,1850,2100,2200,2150,2180];
+const auto  =   [680, 720, 700, 750, 710, 790, 810, 880, 760, 820, 900,1020,1100,1080,1050];
+const contrato= [380, 350, 410, 390, 420, 450, 430, 470, 410, 480, 500, 580, 620, 600, 610];
+const meta = months.map(()=>35);
+const leadTime = [40,38,42,39,36,37,35,34,36,33,32,30,31,32,34];
+
+const fornTop = [
+  {name:'Metalúrgica Omega',val:2225}, {name:'Manutenção Rápida',val:2130},
+  {name:'Tintas & Revest.',val:2128}, {name:'Eletro Componentes',val:2074},
+  {name:'Auto Peças Mercúrio',val:1977},{name:'Químicos Reunidos',val:1850},
+  {name:'Logística Veloz',val:1740},  {name:'Plastiverde',val:1620},
+  {name:'Ferragens Premium',val:1480},{name:'Borrachas do Brasil',val:1320},
+];
+const saving = [42,55,58,70,62,75,80,88,72,90,95,105,62,60,58];
+const slaFiliais = [
+  {name:'Filial Norte',val:88,meta:85},{name:'Filial Centro',val:79,meta:85},
+  {name:'Filial Sul',val:91,meta:85},{name:'Filial Leste',val:74,meta:85},
+  {name:'Filial Oeste',val:83,meta:85}
+];
+
+// ==================== CHART: VOL MENSAL ====================
+new Chart(document.getElementById('volMensal'), {
+  type:'bar',
+  data:{
+    labels:months,
+    datasets:[
+      {label:'Livre',data:livre,backgroundColor:'#3B8BFF',stack:'a'},
+      {label:'Automático',data:auto,backgroundColor:'#00E5A0',stack:'a'},
+      {label:'Contrato',data:contrato,backgroundColor:'#FBBF24',stack:'a'},
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`R$${c.raw}k`}}},
+    scales:{
+      x:{ticks:{color:'#6B7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#6B7280',font:{size:10},callback:v=>`R$${v}k`},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }
+});
+
+// ==================== CHART: DONUT ====================
+new Chart(document.getElementById('situacaoDonut'), {
+  type:'doughnut',
+  data:{
+    labels:['Atendido','Em Aberto','Cancelado','Reprovado','Em Aprovação'],
+    datasets:[{
+      data:[8953,4272,1843,26,15],
+      backgroundColor:['#34D399','#3B8BFF','#F87171','#FBBF24','#C084FC'],
+      borderWidth:0, hoverOffset:6
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    cutout:'72%',
+    plugins:{legend:{display:false}}
+  }
+});
+
+// ==================== RANK CATEGORIAS ====================
+const cats=[
+  {n:'Serviços',v:14.78,c:'#FF6B35'},{n:'Ferramentas',v:4.75,c:'#C084FC'},
+  {n:'Mat. Construção',v:4.09,c:'#3B8BFF'},{n:'Químicos',v:3.34,c:'#00E5A0'},
+  {n:'Mat. Elétricos',v:3.05,c:'#FBBF24'},{n:'EPI & Segurança',v:2.82,c:'#34D399'},
+  {n:'Tubulação',v:2.61,c:'#F87171'},{n:'Peças Mecânicas',v:2.34,c:'#60A5FA'},
+];
+const mx=cats[0].v;
+document.getElementById('rankCateg').innerHTML=cats.map((c,i)=>`
+<div class="prog-item">
+  <div class="prog-header">
+    <span class="prog-name">${c.n}</span>
+    <span class="prog-val">R$${c.v}M</span>
+  </div>
+  <div class="prog-track">
+    <div class="prog-fill" style="width:${c.v/mx*100}%;background:${c.c}"></div>
+  </div>
+</div>`).join('');
+
+// ==================== CHART: TOP FORNECEDORES ====================
+new Chart(document.getElementById('topFornChart'), {
+  type:'bar',
+  data:{
+    labels:fornTop.map(f=>f.name),
+    datasets:[{
+      data:fornTop.map(f=>f.val),
+      backgroundColor:fornTop.map((_,i)=>i<3?'#00E5A0':i<6?'#3B8BFF':'#6B7280'),
+      borderRadius:4, borderSkipped:false
+    }]
+  },
+  options:{
+    indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`R$${c.raw}k`}}},
+    scales:{
+      x:{ticks:{color:'#6B7280',font:{size:10},callback:v=>`R$${v}k`},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#9CA3AF',font:{size:11}},grid:{display:false}}
+    }
+  }
+});
+
+// ==================== ABC BARS ====================
+const abc=[
+  {n:'A · Top 4 fornec.',pct:31.4,c:'#34D399'},{n:'B · Próximos 6',pct:28.2,c:'#FBBF24'},
+  {n:'C · Demais 10',pct:23.8,c:'#F87171'},{n:'Esporádicos',pct:16.6,c:'#6B7280'},
+];
+document.getElementById('abcBars').innerHTML=abc.map(a=>`
+<div class="prog-item">
+  <div class="prog-header">
+    <span class="prog-name">${a.n}</span>
+    <span class="prog-val">${a.pct}%</span>
+  </div>
+  <div class="prog-track">
+    <div class="prog-fill" style="width:${a.pct}%;background:${a.c}"></div>
+  </div>
+</div>`).join('');
+
+// ==================== CHART: LEAD TIME ====================
+new Chart(document.getElementById('leadTimeChart'), {
+  type:'line',
+  data:{
+    labels:months,
+    datasets:[
+      {label:'Lead Time',data:leadTime,borderColor:'#3B8BFF',backgroundColor:'rgba(59,139,255,0.1)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#3B8BFF'},
+      {label:'Meta 35d',data:meta,borderColor:'#F87171',borderDash:[5,5],pointRadius:0,fill:false},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw} dias`}}},
+    scales:{
+      x:{ticks:{color:'#6B7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{min:25,max:48,ticks:{color:'#6B7280',font:{size:10},callback:v=>`${v}d`},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }
+});
+
+// ==================== CHART: SLA FILIAL ====================
+new Chart(document.getElementById('slaFilialChart'), {
+  type:'bar',
+  data:{
+    labels:slaFiliais.map(s=>s.name),
+    datasets:[
+      {label:'% SLA',data:slaFiliais.map(s=>s.val),backgroundColor:slaFiliais.map(s=>s.val>=85?'#34D399':'#F87171'),borderRadius:6},
+      {label:'Meta 85%',data:slaFiliais.map(()=>85),type:'line',borderColor:'#FBBF24',borderDash:[4,4],pointRadius:0,fill:false},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw}%`}}},
+    scales:{
+      x:{ticks:{color:'#9CA3AF',font:{size:11}},grid:{display:false}},
+      y:{min:60,max:100,ticks:{color:'#6B7280',font:{size:10},callback:v=>`${v}%`},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }
+});
+
+// ==================== FUNIL ====================
+const funelStages=[
+  {label:'Solicitações abertas',val:3500,color:'#3B8BFF'},
+  {label:'Enviadas p/ cotação',val:2200,color:'#00E5A0'},
+  {label:'Cotações encerradas',val:1800,color:'#C084FC'},
+  {label:'Pedidos gerados',val:1498,color:'#FBBF24'},
+];
+const mxF=funelStages[0].val;
+document.getElementById('funnelViz').innerHTML=funelStages.map((s,i)=>{
+  const pct=s.val/mxF*100;
+  const mg=(100-pct)/2;
+  return `<div style="margin:4px 0;padding:0 ${mg}%">
+    <div style="background:${s.color}18;border:1px solid ${s.color}40;border-radius:6px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:${s.color};font-weight:600">${s.label}</span>
+      <span style="font-size:12px;font-family:var(--mono);color:${s.color};font-weight:700">${s.val.toLocaleString('pt-BR')}</span>
+    </div>
+  </div>`;
+}).join('');
+
+// ==================== CHART: SAVING ====================
+new Chart(document.getElementById('savingChart'), {
+  type:'line',
+  data:{
+    labels:months,
+    datasets:[{
+      label:'Saving',data:saving,
+      borderColor:'#C084FC',backgroundColor:'rgba(192,132,252,0.1)',
+      fill:true,tension:0.4,pointRadius:2
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`R$${c.raw}k`}}},
+    scales:{
+      x:{ticks:{color:'#6B7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#6B7280',font:{size:10},callback:v=>`R$${v}k`},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }
+});
+
+// ==================== COMPRADORES TABLE ====================
+const compradores=[
+  {n:'João Silva',cots:312,saving:'R$185k',perf:94},
+  {n:'Maria Santos',cots:287,saving:'R$162k',perf:88},
+  {n:'Carlos Lima',cots:265,saving:'R$148k',perf:82},
+  {n:'Ana Souza',cots:241,saving:'R$134k',perf:77},
+  {n:'Pedro Costa',cots:218,saving:'R$112k',perf:71},
+];
+document.getElementById('compradorTable').innerHTML=compradores.map(c=>`
+<tr>
+  <td>${c.n}</td>
+  <td><span style="font-family:var(--mono)">${c.cots}</span></td>
+  <td style="color:var(--success);font-family:var(--mono)">${c.saving}</td>
+  <td>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden">
+        <div style="height:100%;width:${c.perf}%;background:${c.perf>=85?'#34D399':c.perf>=75?'#FBBF24':'#F87171'};border-radius:2px"></div>
+      </div>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.perf}%</span>
+    </div>
+  </td>
+</tr>`).join('');
+
+// ==================== MONITOR TABLE ====================
+const monitor=[
+  {sol:'SOL-8142',fil:'Filial Norte',cat:'Mat. Elétricos',mat:'Disjuntor 20A',qty:'5 UN',sol2:'João G.',sla:'15/03/24',st:'Aberto',pri:'Urgente'},
+  {sol:'SOL-8139',fil:'Filial Centro',cat:'EPI & Segurança',mat:'Bota PVC cano médio',qty:'20 PAR',sol2:'Maria S.',sla:'16/03/24',st:'Pendente',pri:'Alta'},
+  {sol:'SOL-8134',fil:'Filial Sul',cat:'Químicos',mat:'Óleo hidráulico 20L',qty:'10 GL',sol2:'Carlos L.',sla:'17/03/24',st:'Aberto',pri:'Normal'},
+  {sol:'SOL-8128',fil:'Filial Leste',cat:'Peças Mecânicas',mat:'Rolamento 6205',qty:'8 UN',sol2:'Ana L.',sla:'18/03/24',st:'Aberto',pri:'Alta'},
+  {sol:'SOL-8121',fil:'Filial Oeste',cat:'Mat. Construção',mat:'Vergalhão CA-50',qty:'100 UN',sol2:'Pedro C.',sla:'19/03/24',st:'Pendente',pri:'Normal'},
+  {sol:'SOL-8116',fil:'Filial Norte',cat:'Tubulação',mat:'Tubo PVC 100mm',qty:'30 UN',sol2:'Lucas M.',sla:'20/03/24',st:'Aberto',pri:'Normal'},
+];
+const priColor={Urgente:'pill-red',Alta:'pill-warn',Normal:'pill-blue'};
+const stColor={Aberto:'pill-orange',Pendente:'pill-warn'};
+document.getElementById('monitorTable').innerHTML=monitor.map(r=>`
+<tr>
+  <td style="font-family:var(--mono);color:var(--accent2)">${r.sol}</td>
+  <td style="color:var(--muted)">${r.fil}</td>
+  <td>${r.cat}</td>
+  <td style="font-weight:500">${r.mat}</td>
+  <td style="font-family:var(--mono);color:var(--muted)">${r.qty}</td>
+  <td style="color:var(--muted)">${r.sol2}</td>
+  <td style="font-family:var(--mono);color:var(--warn)">${r.sla}</td>
+  <td><span class="status-pill ${stColor[r.st]}">${r.st}</span></td>
+  <td><span class="status-pill ${priColor[r.pri]}">${r.pri}</span></td>
+</tr>`).join('');
+</script>
+</body>
+</html>
