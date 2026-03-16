@@ -7,7 +7,7 @@
 
 Dashboard executivo de suprimentos desenvolvido com dados fictícios no mesmo formato de sistemas ERP reais. Cobre análise de pedidos, SLA, cotações, fornecedores e saving.
 
-## Indicadores cobertos
+## Indicadores utilizados
 
 - **KPIs** — volume total, taxa de atendimento, lead time, saving realizado
 - **SLA** — conformidade por filial, itens vencidos, alertas em tempo real
